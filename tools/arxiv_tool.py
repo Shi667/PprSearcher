@@ -4,10 +4,10 @@ from typing import List, Dict
 
 ARXIV_API = "http://export.arxiv.org/api/query"
 
-
-
 def search_arxiv(query: str, max_results: int = 10) -> List[Dict]:
-   
+    """
+    Query the arXiv API and return a list of dictionaries containing paper details.
+    """
     params = {
         "search_query": f"all:{query}",
         "start": 0,
@@ -42,12 +42,12 @@ def search_arxiv(query: str, max_results: int = 10) -> List[Dict]:
 
 
 if __name__ == "__main__":
-    print("Recherche en cours sur 'quantum machine learning'...\n")
-    resultats = search_arxiv("quantum machine learning")
+    print("Searching for 'quantum machine learning'...\n")
+    results = search_arxiv("quantum machine learning", max_results=2)
     
-    for i, papier in enumerate(resultats, 1):
-        print(f"--- Papier {i} ---")
-        print(f"Titre  : {papier['title']}")
-        print(f"Auteurs: {', '.join(papier['authors'])}")
-        print(f"Lien   : {papier['link']}")
-        print(f"Résumé : {papier['abstract'][:150]}...\n") # On affiche juste le début du résumé
+    for i, paper in enumerate(results, 1):
+        print(f"--- Paper {i} ---")
+        print(f"Title  : {paper['title']}")
+        print(f"Authors: {', '.join(paper['authors'])}")
+        print(f"Link   : {paper['link']}")
+        print(f"Abstract: {paper['abstract'][:150]}...\n") # We only display the beginning of the abstract

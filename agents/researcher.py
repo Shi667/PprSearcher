@@ -2,8 +2,6 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-from pyexpat.errors import messages 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
@@ -11,28 +9,25 @@ from tools.arxiv_tool import search_arxiv
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 
 
-load_dotenv()  #
+load_dotenv()
 
 @tool
-
-
 def arxiv_search_tool(query: str, max_results: int = 5) -> str:
-    """Recherche des articles scientifiques sur arXiv à partir d'une requête texte."""
+    """Search for scientific papers on arXiv based on a text query."""
     papers = search_arxiv(query, max_results)
 
     if not papers:
-        return "Aucun papier trouvé pour la requête donnée."
+        return "No papers found for the given query."
     
     formatted_results = []
     for i, p in enumerate(papers, 1):
         formatted_results.append(
-            f"[{i}] Titre: {p['title']}\n"
-            f"Auteurs: {', '.join(p['authors'])}\n"
-            f"Résumé: {p['abstract'][:500]}...\n" 
-            f"Lien: {p['link']}"
+            f"[{i}] Title: {p['title']}\n"
+            f"Authors: {', '.join(p['authors'])}\n"
+            f"Abstract: {p['abstract'][:500]}...\n" 
+            f"Link: {p['link']}"
         )
     return "\n\n---\n\n".join(formatted_results)
-
 
 
 llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
@@ -43,52 +38,44 @@ def run_researcher(topic: str, max_iters: int = 5) -> str:
 
     messages = [
         SystemMessage(content=(
-        "Tu es un assistant de recherche scientifique expert. "
-        "Ton objectif est de trouver des articles pertinents sur arXiv concernant le sujet de l'utilisateur. "
-        "1. Utilise l'outil de recherche arXiv. "
-        "2. Évalue la pertinence des résultats. "
-        "3. Si les résultats sont mauvais ou vides, reformule ta requête (essaie en anglais, ou avec des mots-clés plus précis) et recherche à nouveau. "
-        "4. Arrête-toi quand tu as trouvé au moins 3 bons articles OU après 3 tentatives maximum. "
-        "5. À la fin, résume brièvement les meilleurs articles trouvés avec leurs liens."
+            "You are an expert scientific research assistant. "
+            "Your goal is to find relevant papers on arXiv about the user's topic. "
+            "1. Use the arXiv search tool. "
+            "2. Evaluate the relevance of the results. "
+            "3. If the results are poor or empty, reformulate your query (try in English, or with more precise keywords) and search again. "
+            "4. Stop when you have found at least 3 good papers OR after 3 attempts maximum. "
+            "5. At the end, briefly summarize the best papers found with their links."
         )),
-        HumanMessage(content=f"Trouve des articles de recherche récents et pertinents sur le sujet suivant : {topic}")
+        HumanMessage(content=f"Find recent and relevant research papers on the following topic: {topic}")
     ]
 
     for iteration in range(max_iters):
-        print(f"\n[Agent] Itération {iteration + 1}/{max_iters}...")
-        
+        print(f"\n[Agent] Iteration {iteration + 1}/{max_iters}...")
         
         response = agent_llm.invoke(messages)
         messages.append(response) 
         
-        
         if response.tool_calls:
             for tool_call in response.tool_calls:
-                print(f"  -> Appel de l'outil avec la requête : '{tool_call['args'].get('query')}'")
-                
+                print(f"  -> Calling tool with query: '{tool_call['args'].get('query')}'")
                 
                 tool_result = arxiv_search_tool.invoke(tool_call["args"])
-                
                 
                 messages.append(ToolMessage(
                     content=tool_result,
                     tool_call_id=tool_call["id"]
                 ))
         else:
-            
-            print("  -> L'agent a terminé sa recherche.")
+            print("  -> Agent finished its research.")
             break
 
-  
     return messages[-1].content
 
 
 if __name__ == "__main__":
-    print("Lancement de l'agent de recherche...")
-    resultat_final = run_researcher("quantum machine learning")
+    print("Launching the research agent...")
+    final_result = run_researcher("quantum machine learning")
     print("\n" + "="*50)
-    print("RÉSULTAT FINAL DE L'AGENT :")
+    print("AGENT FINAL RESULT:")
     print("="*50)
-    print(resultat_final)
-
-
+    print(final_result)

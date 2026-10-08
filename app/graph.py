@@ -125,6 +125,8 @@ def build_research_graph():
 
     return graph.compile()
 
+graph = build_research_graph()
+
 if __name__ == "__main__":
     print(" Launching the LangGraph orchestrator with Critic Loop...")
     

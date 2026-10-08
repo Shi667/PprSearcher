@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Research Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root {
+    --bg: #FAFAFA; --ink: #1A1A1A; --muted: #6B6B6B; --line: #E4E4E7;
+    --accent: #0F766E; --accent-soft: #E6F2F1; --err: #B42318;
+    --serif: "Fraunces", Georgia, serif; --sans: "Inter", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--sans); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 56px 28px 96px; }
+
+  header h1 { font: 600 40px/1.1 var(--serif); letter-spacing: -0.02em; margin: 0 0 8px; }
+  header p { margin: 0; color: var(--muted); }
+
+  form { display: flex; gap: 12px; margin: 36px 0 20px; }
+  input[type=text] { flex: 1; padding: 13px 16px; font: inherit; background: #fff; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; }
+  input[type=text]:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button { font: 500 15px var(--sans); padding: 13px 22px; border-radius: 8px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--accent); }
+
+  /* The research loop, with the active stage highlighted */
+  .loop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 36px; color: var(--muted); font-size: 13px; }
+  .loop .step { padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; transition: all .25s; }
+  .loop .step.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .loop .back { margin-left: 6px; }
+
+  .grid { display: grid; grid-template-columns: 320px 1fr; gap: 48px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; gap: 32px; } }
+
+  h2 { font: 600 20px var(--serif); margin: 0 0 14px; }
+  #events { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; border-top: 1px solid var(--line); }
+  #events li { display: grid; grid-template-columns: 22px 1fr; gap: 4px 8px; padding: 12px 0; border-bottom: 1px solid var(--line);
+    animation: in .35s ease; font-size: 14px; }
+  #events time { grid-column: 2; color: var(--muted); font-size: 12px; }
+  #events li.live .msg::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%;
+    background: var(--accent); animation: pulse 1.2s infinite; }
+  #events li.error { color: var(--err); }
+  .empty { color: var(--muted); font-size: 14px; }
+  @keyframes in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  #result { display: none; animation: in .6s ease; }
+  #report { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 44px 52px; }
+  @media (max-width: 600px) { #report { padding: 24px; } }
+  .actions { margin-top: 18px; }
+
+  /* Rendered markdown */
+  .md { font-family: var(--serif); font-size: 16.5px; line-height: 1.75; }
+  .md h1, .md h2, .md h3, .md h4 { font-family: var(--serif); line-height: 1.25; letter-spacing: -0.01em; margin: 1.8em 0 .5em; }
+  .md h1 { font-size: 30px; margin-top: 0; } .md h2 { font-size: 23px; } .md h3 { font-size: 19px; }
+  .md a { color: var(--accent); }
+  .md blockquote { margin: 1.2em 0; padding: 2px 0 2px 18px; border-left: 3px solid var(--accent); color: #444; }
+  .md table { width: 100%; border-collapse: collapse; margin: 1.4em 0; font: 14px/1.5 var(--sans); }
+  .md th, .md td { text-align: left; padding: 9px 12px; border: 1px solid var(--line); vertical-align: top; }
+  .md th { background: var(--bg); font-weight: 500; }
+  .md tr { page-break-inside: avoid; }
+  .md code { font: 13px ui-monospace, Menlo, monospace; background: #F1F1F3; padding: 2px 5px; border-radius: 4px; }
+  .md pre { background: #F1F1F3; padding: 14px 16px; border-radius: 8px; overflow-x: auto; page-break-inside: avoid; }
+  .md pre code { background: none; padding: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Deep Research Agent</h1>
+    <p>Turns a topic into a state-of-the-art review, checked against arXiv.</p>
+  </header>
+
+  <form id="form">
+    <input id="topic" type="text" required placeholder="e.g., quantum machine learning benchmarking" aria-label="Research topic">
+    <button id="start" type="submit">Start research</button>
+  </form>
+
+  <div class="loop" aria-label="Agent loop">
+    <span class="step" data-stage="research">Research</span>→
+    <span class="step" data-stage="read">Read</span>→
+    <span class="step" data-stage="synthesize">Synthesize</span>→
+    <span class="step" data-stage="critique">Critic</span>
+    <span class="back">↺ repeats while the critic finds gaps (max 2 rounds)</span>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>Progress</h2>
+      <ul id="events"><li class="empty" style="display:block;border:0;padding:0">Events appear here once you start.</li></ul>
+    </section>
+    <section id="result">
+      <h2>Synthesis</h2>
+      <article id="report" class="md"></article>
+      <div class="actions"><button id="pdf" class="ghost" type="button">Download as PDF</button></div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const ICONS = { research: "🔍", read: "📖", synthesize: "📝", critique: "⚖️", done: "✅", info: "•", error: "⚠️" };
+let currentTopic = "";
+
+function setStage(stage) {
+  document.querySelectorAll(".loop .step").forEach(s => s.classList.toggle("active", s.dataset.stage === stage));
+}
+
+function addEvent(stage, message, cls = "") {
+  const list = $("events");
+  list.querySelector(".empty")?.remove();
+  list.querySelectorAll("li.live").forEach(li => li.classList.remove("live"));
+  const li = document.createElement("li");
+  li.className = cls;
+  const icon = document.createElement("span"); icon.textContent = ICONS[stage] || "•";
+  const msg = document.createElement("span"); msg.className = "msg"; msg.textContent = message;
+  const time = document.createElement("time"); time.textContent = new Date().toLocaleTimeString();
+  li.append(icon, msg, time);
+  list.appendChild(li);
+  list.scrollTop = list.scrollHeight;
+}
+
+function handle(ev) {
+  if (ev.type === "progress") {
+    setStage(ev.stage);
+    addEvent(ev.stage, ev.message);
+    $("events").lastElementChild.classList.add("live");
+  } else if (ev.type === "result") {
+    $("report").innerHTML = DOMPurify.sanitize(marked.parse(ev.synthesis || "_The agent returned no synthesis._"));
+    $("result").style.display = "block";
+    setStage(null);
+    addEvent("done", "Synthesis approved by critic");
+  } else if (ev.type === "error") {
+    setStage(null);
+    addEvent("error", "The agent stopped: " + ev.message + ". Check the server log and try again.", "error");
+  }
+}
+
+// POST + streamed response, parsed as SSE ("data: {...}\n\n")
+async function run(topic) {
+  const res = await fetch("/api/research", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic })
+  });
+  if (!res.ok) throw new Error("Server returned " + res.status);
+  const reader = res.body.getReader(), decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split("\n\n");
+    buf = parts.pop();
+    for (const part of parts) {
+      const line = part.split("\n").find(l => l.startsWith("data: "));
+      if (line) handle(JSON.parse(line.slice(6)));
+    }
+  }
+}
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  currentTopic = $("topic").value.trim();
+  if (!currentTopic) return;
+  $("start").disabled = $("topic").disabled = true;
+  $("result").style.display = "none";
+  $("events").innerHTML = "";
+  addEvent("research", "Starting research on “" + currentTopic + "”");
+  try { await run(currentTopic); }
+  catch (err) { addEvent("error", "Connection lost: " + err.message, "error"); }
+  finally { $("start").disabled = $("topic").disabled = false; setStage(null); }
+});
+
+$("pdf").addEventListener("click", () => {
+  const slug = currentTopic.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "report";
+  html2pdf().set({
+    margin: [14, 14], filename: `research_report_${slug}.pdf`,
+    image: { type: "jpeg", quality: 0.96 }, html2canvas: { scale: 2, backgroundColor: "#ffffff" },
+    jsPDF: { unit: "mm", format: "a4" }, pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "pre", "blockquote"] }
+  }).from($("report")).save();
+});
+</script>
+</body>
+</html>

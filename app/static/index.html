@@ -82,7 +82,7 @@
         color: var(--muted);
       }
 
-      /* Composer: one quiet surface holding topic, paper count and the action */
+      /* Composer */
       .composer {
         margin-top: 36px;
         background: var(--surface);
@@ -112,26 +112,76 @@
       #topic::placeholder {
         color: var(--muted);
       }
-      .count {
+
+      /* Paper count group with slider */
+      .count-group {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 10px;
         padding: 0 12px;
         border-left: 1px solid var(--line);
         color: var(--muted);
         font-size: 14px;
       }
+      .count-group label {
+        font-size: 13px;
+        white-space: nowrap;
+      }
       #num-papers {
-        width: 38px;
+        width: 36px;
         border: 0;
         background: none;
-        text-align: right;
+        text-align: center;
         outline: none;
         -moz-appearance: textfield;
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        color: var(--text);
       }
-      #num-papers::-webkit-inner-spin-button {
-        display: none;
+      #num-papers::-webkit-inner-spin-button,
+      #num-papers::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
       }
+      #paper-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 110px;
+        height: 4px;
+        background: var(--line);
+        border-radius: 2px;
+        outline: none;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      #paper-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        border: 2px solid var(--surface);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        transition:
+          transform 0.15s,
+          background 0.15s;
+      }
+      #paper-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.15);
+        background: var(--accent-hover);
+      }
+      #paper-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        border: 2px solid var(--surface);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+      }
+
       .btn {
         border: 0;
         border-radius: 7px;
@@ -155,6 +205,20 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .btn.stop {
+        background: var(--err);
+      }
+      .btn.stop:hover:not(:disabled) {
+        background: #991b1b;
+      }
+      @media (prefers-color-scheme: dark) {
+        .btn.stop {
+          color: #fff;
+        }
+        .btn.stop:hover:not(:disabled) {
+          background: #dc2626;
+        }
+      }
       .btn.quiet {
         background: none;
         color: var(--muted);
@@ -166,6 +230,7 @@
         background: var(--sunk);
         color: var(--text);
       }
+
       @media (max-width: 560px) {
         .composer {
           flex-wrap: wrap;
@@ -174,10 +239,14 @@
         #topic {
           flex-basis: 100%;
         }
-        .count {
+        .count-group {
           border: 0;
           padding: 0 8px 0 0;
           flex: 1;
+        }
+        #paper-slider {
+          flex: 1;
+          min-width: 80px;
         }
       }
 
@@ -201,7 +270,7 @@
         border-color: var(--accent);
       }
 
-      /* Run panel: stepper + current status + collapsible activity log */
+      /* Run panel */
       #run {
         display: none;
         margin-top: 40px;
@@ -211,7 +280,7 @@
       }
       .stepper {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 6px;
       }
       .step {
@@ -308,6 +377,10 @@
       }
       .row.error {
         color: var(--err);
+      }
+      .row.cancelled {
+        color: var(--err);
+        font-style: italic;
       }
       @keyframes in {
         from {
@@ -495,8 +568,9 @@
           autocomplete="off"
           autofocus
         />
-        <label class="count"
-          ><input
+        <div class="count-group">
+          <label for="num-papers">Papers:</label>
+          <input
             id="num-papers"
             type="number"
             min="1"
@@ -504,9 +578,19 @@
             value="5"
             aria-label="Number of papers"
           />
-          papers</label
-        >
+          <input
+            id="paper-slider"
+            type="range"
+            min="1"
+            max="20"
+            value="5"
+            aria-label="Paper count slider"
+          />
+        </div>
         <button class="btn" id="start-btn">Start research</button>
+        <button class="btn stop" id="stop-btn" style="display: none">
+          Stop
+        </button>
       </div>
       <div class="examples" id="examples">
         <button type="button">argument mining in legal texts</button>
@@ -520,6 +604,7 @@
           <div class="step" data-stage="read">Read</div>
           <div class="step" data-stage="synthesize">Synthesize</div>
           <div class="step" data-stage="critique">Critic</div>
+          <div class="step" data-stage="curate">Curate</div>
         </div>
         <div class="status" id="status">
           <span class="dot"></span><span id="status-text"></span
@@ -554,18 +639,21 @@
         read: "📖",
         synthesize: "📝",
         critique: "⚖️",
+        curate: "🏆",
         info: "·",
         error: "⚠️",
         done: "✅",
+        cancelled: "🛑",
       };
-      const ORDER = ["research", "read", "synthesize", "critique"];
+      const ORDER = ["research", "read", "synthesize", "critique", "curate"];
 
       let currentSynthesis = "",
         currentTopic = "",
         round = 1,
         reached = -1,
         startedAt = 0,
-        timer = null;
+        timer = null,
+        isRunning = false;
 
       function toast(msg) {
         const t = $("toast");
@@ -588,7 +676,6 @@
         $("status-text").textContent = text;
       }
 
-      // Stepper: steps fill as the agent advances; a new Research step after the critic starts another round.
       function advance(stage) {
         const i = ORDER.indexOf(stage);
         if (i < 0) return;
@@ -605,7 +692,13 @@
 
       function addLog(stage, message) {
         const row = document.createElement("div");
-        row.className = "row " + (stage === "error" ? "error" : "");
+        row.className =
+          "row " +
+          (stage === "error"
+            ? "error"
+            : stage === "cancelled"
+              ? "cancelled"
+              : "");
         const icon = document.createElement("span");
         icon.textContent = ICONS[stage] || "·";
         const text = document.createElement("span");
@@ -621,7 +714,6 @@
         $("log").scrollTop = $("log").scrollHeight;
       }
 
-      // Wrap tables so wide ones scroll instead of breaking the layout.
       function render(md) {
         const holder = $("synthesis");
         holder.innerHTML = DOMPurify.sanitize(marked.parse(md));
@@ -631,6 +723,17 @@
           t.replaceWith(w);
           w.appendChild(t);
         });
+      }
+
+      function setRunning(running) {
+        isRunning = running;
+        $("start-btn").style.display = running ? "none" : "";
+        $("stop-btn").style.display = running ? "" : "none";
+        $("start-btn").disabled = running;
+        $("stop-btn").disabled = !running;
+        $("topic").disabled = running;
+        $("num-papers").disabled = running;
+        $("paper-slider").disabled = running;
       }
 
       function handle(ev) {
@@ -649,13 +752,22 @@
             el.classList.remove("active");
             el.classList.add("done");
           });
-          addLog("done", "Synthesis approved by critic");
+          addLog("done", "Research complete");
           setStatus("Done", "idle");
+          setRunning(false);
+          clearInterval(timer);
           $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+        } else if (ev.type === "cancelled") {
+          addLog("cancelled", ev.message || "Research stopped by user.");
+          setStatus("Stopped by user", "fail");
+          setRunning(false);
+          clearInterval(timer);
         } else if (ev.type === "error") {
           addLog("error", ev.message);
           setStatus("The agent stopped: " + ev.message, "fail");
           toast(ev.message);
+          setRunning(false);
+          clearInterval(timer);
         }
       }
 
@@ -676,8 +788,7 @@
         currentSynthesis = "";
         round = 1;
         reached = -1;
-        $("start-btn").disabled = true;
-        $("start-btn").textContent = "Running…";
+        setRunning(true);
         $("examples").style.display = "none";
         $("result").classList.remove("on");
         $("log").innerHTML = "";
@@ -688,8 +799,8 @@
         startedAt = Date.now();
         tick();
         timer = setInterval(tick, 1000);
-        setStatus(`Starting research on “${topic}”`);
-        addLog("info", `Starting research on “${topic}” (${n} papers)`);
+        setStatus(`Starting research on "${topic}"`);
+        addLog("info", `Starting research on "${topic}" (${n} papers)`);
 
         try {
           const res = await fetch("/api/research", {
@@ -715,20 +826,28 @@
               if (!line) continue;
               try {
                 handle(JSON.parse(line.slice(6)));
-              } catch (_) {
-                /* skip malformed event */
-              }
+              } catch (_) {}
             }
           }
         } catch (err) {
           addLog("error", err.message);
           setStatus(err.message, "fail");
           toast(err.message);
-        } finally {
+          setRunning(false);
           clearInterval(timer);
-          tick();
-          $("start-btn").disabled = false;
-          $("start-btn").textContent = "Start research";
+        }
+      }
+
+      async function stopResearch() {
+        if (!isRunning) return;
+        $("stop-btn").disabled = true;
+        $("stop-btn").textContent = "Stopping...";
+        try {
+          await fetch("/api/stop", { method: "POST" });
+        } catch (err) {
+          toast("Failed to send stop signal: " + err.message);
+          $("stop-btn").disabled = false;
+          $("stop-btn").textContent = "Stop";
         }
       }
 
@@ -737,7 +856,7 @@
           return toast("No synthesis available to download.");
         const btn = $("pdf-btn");
         btn.disabled = true;
-        btn.textContent = "Generating…";
+        btn.textContent = "Generating...";
         try {
           const res = await fetch("/api/download-pdf", {
             method: "POST",
@@ -785,11 +904,35 @@
         }
       }
 
+      // ── Sync the paper number input with the slider ──
+      const paperInput = $("num-papers");
+      const paperSlider = $("paper-slider");
+
+      function syncPaperCount(source, value) {
+        let n = parseInt(value, 10);
+        if (isNaN(n)) n = 1;
+        n = Math.max(1, Math.min(20, n));
+        paperInput.value = n;
+        paperSlider.value = n;
+      }
+
+      paperInput.addEventListener("input", () =>
+        syncPaperCount(paperInput, paperInput.value),
+      );
+      paperSlider.addEventListener("input", () =>
+        syncPaperCount(paperSlider, paperSlider.value),
+      );
+      paperInput.addEventListener("blur", () =>
+        syncPaperCount(paperInput, paperInput.value),
+      );
+
+      // ── Event listeners ──
       $("start-btn").addEventListener("click", startResearch);
+      $("stop-btn").addEventListener("click", stopResearch);
       $("pdf-btn").addEventListener("click", downloadPDF);
       $("copy-btn").addEventListener("click", copyMarkdown);
       $("topic").addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !$("start-btn").disabled) startResearch();
+        if (e.key === "Enter" && !isRunning) startResearch();
       });
       $("examples").addEventListener("click", (e) => {
         if (e.target.tagName === "BUTTON") {

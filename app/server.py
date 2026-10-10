@@ -1,14 +1,3 @@
-"""
-Deep Research Agent - web backend (FastAPI + Server-Sent Events).
-
-Run from the project root:   python app/server.py
-Then open:                   http://localhost:8000
-
-How progress streaming works: the LangGraph nodes `print()` their status
-messages. While the graph runs in a worker thread, stdout is redirected to a
-writer that pushes each printed line onto a queue; the SSE response drains that
-queue and forwards every line to the browser as an event.
-"""
 import contextlib
 import io
 import json
@@ -18,13 +7,18 @@ import sys
 import threading
 from pathlib import Path
 
-# Make `app`, `agents`, `tools`, `memory` importable however the server is started.
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from dotenv import load_dotenv
 
-load_dotenv(ROOT / ".env")  # GROQ_API_KEY
+from dotenv import load_dotenv
+load_dotenv(ROOT / ".env")
+
+
+from tools.pdf_generator import generate_pdf_from_markdown
+from app import graph as graph_module
+
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -32,12 +26,9 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app import graph as graph_module
-
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 api = FastAPI(title="Deep Research Agent")
 
-# Only one run at a time: redirecting stdout is process-wide.
 run_lock = threading.Lock()
 
 
@@ -59,6 +50,7 @@ def get_compiled_graph():
 
 class ResearchRequest(BaseModel):
     topic: str
+    num_papers: int = 5  
 
 
 class QueueWriter(io.TextIOBase):
@@ -93,17 +85,22 @@ def classify(line: str) -> str:
     return "info"
 
 
-def run_graph(topic: str, q: queue.Queue) -> None:
-    """Worker thread: run the agent with stdout captured, then post the result."""
+def run_graph(topic: str, num_papers: int, q: queue.Queue) -> None:
     try:
         with run_lock, contextlib.redirect_stdout(QueueWriter(q)):
             state = {
-                "topic": topic, "raw_papers": [], "analyzed_papers": [],
-                "synthesis": "", "critique": "", "gaps": [], "iteration": 0,
+                "topic": topic,
+                "num_papers": num_papers,  # NEW
+                "raw_papers": [],
+                "analyzed_papers": [],
+                "synthesis": "",
+                "critique": "",
+                "gaps": [],
+                "iteration": 0,
             }
             result = get_compiled_graph().invoke(state)
-        q.put(("result", result.get("synthesis", "")))
-    except Exception as exc:  # surface any crash to the UI
+            q.put(("result", result.get("synthesis", "")))
+    except Exception as exc:
         q.put(("error", f"{type(exc).__name__}: {exc}"))
     finally:
         q.put(("end", None))
@@ -116,21 +113,26 @@ def sse(payload: dict) -> str:
 @api.post("/api/research")
 def research(req: ResearchRequest):
     topic = req.topic.strip()
+    num_papers = req.num_papers
+    
     if not topic:
         raise HTTPException(status_code=400, detail="Topic is required.")
-
+    if num_papers < 1 or num_papers > 20:
+        raise HTTPException(status_code=400, detail="num_papers must be between 1 and 20")
+    
     q: queue.Queue = queue.Queue()
-    threading.Thread(target=run_graph, args=(topic, q), daemon=True).start()
-
+    threading.Thread(target=run_graph, args=(topic, num_papers, q), daemon=True).start()
+    
     def event_stream():
         while True:
             try:
                 kind, data = q.get(timeout=15)
             except queue.Empty:
-                yield ": keep-alive\n\n"  # keeps proxies from closing the stream
+                yield ": keep-alive\n\n"
                 continue
+            
             if kind == "log":
-                message = re.sub(r"^\W*\[Graph\]\s*", "", data)  # drop "🔍 [Graph]" prefix
+                message = re.sub(r"^\W*\[Graph\]\s*", "", data)
                 yield sse({"type": "progress", "stage": classify(data), "message": message})
             elif kind == "result":
                 yield sse({"type": "result", "synthesis": data})
@@ -138,13 +140,45 @@ def research(req: ResearchRequest):
                 yield sse({"type": "error", "message": data})
             elif kind == "end":
                 break
-
+    
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+
+@api.post("/api/download-pdf")
+def download_pdf(req: dict):
+    synthesis = req.get("synthesis", "")
+    topic = req.get("topic", "research_report")
+    
+    if not synthesis:
+        raise HTTPException(status_code=400, detail="No synthesis provided")
+    
+    # Create temporary PDF path
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+        pdf_path = tmp.name
+    
+    # Use the new WeasyPrint generator
+    success = generate_pdf_from_markdown(synthesis, pdf_path)
+    
+    if not success:
+        import os
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+        raise HTTPException(status_code=500, detail="PDF generation failed.")
+    
+    safe_topic = "".join(e for e in topic if e.isalnum() or e == " ").strip().replace(" ", "_")[:30]
+    
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"research_report_{safe_topic}.pdf",
+        headers={"Content-Disposition": f"attachment; filename=research_report_{safe_topic}.pdf"}
+    )
 
 @api.get("/")
 def index():

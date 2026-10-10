@@ -41,15 +41,14 @@ Output strictly in JSON format, no markdown, no extra text.
     
     try:
         response = llm.invoke(prompt)
-        # Nettoyer la réponse au cas où le LLM ajouterait des backticks ```json ... ```
+       
         clean_response = response.content.strip().removeprefix("```json").removesuffix("```").strip()
         structured_summary = json.loads(clean_response)
         
-        # On retourne le papier original avec le résumé structuré ajouté
         return {**paper, "structured_summary": structured_summary}
     
     except json.JSONDecodeError:
-        # Fallback si le LLM ne renvoie pas un JSON valide
+       
         return {**paper, "structured_summary": {"error": "Failed to parse LLM response as JSON", "raw": response.content}}
 
 

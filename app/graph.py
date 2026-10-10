@@ -13,7 +13,8 @@ llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0.2)
 
 def node_research(state: ResearchState) -> dict:
     iteration = state.get("iteration", 0) + 1
-    print(f"\n [Graph] Research iteration {iteration}...")
+    num_papers = state.get("num_papers", 5)
+    print(f"\n🔍 [Graph] Research iteration {iteration}...")
     
     if state.get("gaps") and len(state["gaps"]) > 0:
         query = state["gaps"][0]
@@ -22,7 +23,7 @@ def node_research(state: ResearchState) -> dict:
         query = state["topic"]
         print(f"  -> Initial search for: '{query}'")
         
-    papers = search_arxiv(query, max_results=2)
+    papers = search_arxiv(query, max_results=num_papers)
     print(f"  -> {len(papers)} new papers found.")
     
     current_papers = state.get("raw_papers", [])
@@ -32,8 +33,8 @@ def node_research(state: ResearchState) -> dict:
     }
 
 def node_read(state: ResearchState) -> dict:
-    print("\n [Graph] Reading and structuring new papers...")
-    new_papers = state["raw_papers"][-2:] if len(state["raw_papers"]) >= 2 else state["raw_papers"]
+    print("\n📖 [Graph] Reading and structuring new papers...")
+    new_papers = state["raw_papers"][-state.get("num_papers", 5):] if len(state["raw_papers"]) >= state.get("num_papers", 5) else state["raw_papers"]
     
     analyzed = []
     for i, paper in enumerate(new_papers):
@@ -45,31 +46,59 @@ def node_read(state: ResearchState) -> dict:
     return {"analyzed_papers": current_analyzed + analyzed}
 
 def node_synthesize(state: ResearchState) -> dict:
-    print("\n [Graph] Generating/Updating synthesis...")
+    print("\n📝 [Graph] Generating individual paper summaries...")
     
-    context = ""
+    
+    summaries = []
     for i, p in enumerate(state["analyzed_papers"], 1):
         summary = p.get("structured_summary", {})
-        context += f"--- PAPER {i} ---\n"
-        context += f"Title: {p['title']}\n"
-        context += f"Objective: {summary.get('objective_and_scope', 'N/A')}\n"
-        context += f"Method: {summary.get('proposed_framework', 'N/A')}\n"
-        context += f"Results: {summary.get('key_results', 'N/A')}\n\n"
+        
+        # Format as a clean individual summary
+        paper_summary = f"""
+# {p['title']}
 
-    prompt = f"""
-You are an expert academic researcher. Write a comprehensive, structured State-of-the-Art review on: "{state['topic']}".
+**Authors:** {', '.join(p['authors'])}  
+**Link:** {p['link']}
 
-Use ALL the following analyzed papers as your source. Integrate the new findings seamlessly with any previous context.
-Organize by key themes. Cite papers by title.
+## Objective and Scope
+{summary.get('objective_and_scope', 'N/A')}
 
-Papers data:
-{context}
+## Domain and Motivation
+{summary.get('domain_and_motivation', 'N/A')}
 
-Output format: Markdown. Be concise, academic, and well-structured.
+## Main Tasks and Contributions
+{summary.get('main_tasks_or_contributions', 'N/A')}
+
+## Dataset and Methodology
+{summary.get('dataset_or_methodology', 'N/A')}
+
+## Proposed Framework
+{summary.get('proposed_framework', 'N/A')}
+
+## Evaluation Strategy and Metrics
+{summary.get('evaluation_strategy_and_metrics', 'N/A')}
+
+## Key Results
+{summary.get('key_results', 'N/A')}
+
+## Limitations
+{summary.get('limitations', 'N/A')}
+
+## Conclusion
+{summary.get('conclusion', 'N/A')}
+
+**Keywords:** {', '.join(summary.get('keywords', []))}
+
+---
+
 """
-    response = llm.invoke(prompt)
-    print("  -> Synthesis updated successfully.")
-    return {"synthesis": response.content}
+        summaries.append(paper_summary)
+    
+    # Combine all individual summaries
+    combined_synthesis = "\n\n".join(summaries)
+    
+    print("  -> Individual summaries generated successfully.")
+    return {"synthesis": combined_synthesis}
 
 def node_critique(state: ResearchState) -> dict:
     print("\n [Graph] Critic evaluating the synthesis...")
@@ -95,10 +124,10 @@ def should_continue(state: ResearchState) -> str:
         print("\n [Graph] Max iterations reached. Ending.")
         return "end"
     elif len(gaps) > 0:
-        print(f"\n🔄 [Graph] Gaps found. Looping back to research (Iteration {current_iteration + 1})...")
+        print(f"\n [Graph] Gaps found. Looping back to research (Iteration {current_iteration + 1})...")
         return "research"
     else:
-        print("\n✅ [Graph] Synthesis approved by critic. Ending.")
+        print("\n [Graph] Synthesis approved by critic. Ending.")
         return "end"
 
 def build_research_graph():
@@ -128,12 +157,13 @@ def build_research_graph():
 graph = build_research_graph()
 
 if __name__ == "__main__":
-    print(" Launching the LangGraph orchestrator with Critic Loop...")
+    print("Launching the LangGraph orchestrator with Critic Loop...")
     
     app = build_research_graph()
     
     initial_state = {
         "topic": "quantum machine learning benchmarking",
+        "num_papers": 3,
         "raw_papers": [],
         "analyzed_papers": [],
         "synthesis": "",
@@ -144,11 +174,11 @@ if __name__ == "__main__":
     
     for event in app.stream(initial_state):
         node_name = list(event.keys())[0]
-        print(f"\n✅ Node '{node_name}' completed.")
+        print(f"\n Node '{node_name}' completed.")
         
     final_state = app.invoke(initial_state)
     
     print("\n" + "="*70)
-    print("📄 FINAL APPROVED SYNTHESIS (STATE OF THE ART)")
+    print(" FINAL INDIVIDUAL SUMMARIES")
     print("="*70)
     print(final_state["synthesis"])

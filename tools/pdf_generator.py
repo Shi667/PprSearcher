@@ -4,24 +4,34 @@ from xhtml2pdf import pisa
 from io import BytesIO
 
 def sanitize_text(text: str) -> str:
-
-    # Replace black squares and weird dashes with standard hyphens
+ 
+    # 1. Direct replacement of the exact black square character
+    text = text.replace('■', '-')
+    
+    # 2. Replacement of known Unicode lookalikes and weird dashes
     text = text.replace('\u25a0', '-')  # Black square
     text = text.replace('\u25aa', '-')  # Black small square
     text = text.replace('\u2013', '-')  # En dash
     text = text.replace('\u2014', '-')  # Em dash
     text = text.replace('\uf02d', '-')  # Private use area character
+    text = text.replace('\u00a0', ' ')  # Non-breaking space to normal space
     
-    # Fix missing spaces around hyphens (e.g., "state-of-the-art" instead of "state-of-the-art")
-    # and clean up multiple spaces
+    # 3. Fallback: Replace any other weird, non-standard printable characters
+    text = re.sub(r'[^\x00-\x7F\u00C0-\u017F]+', '-', text)
+    
+    # 4. Clean up multiple spaces or hyphens
     text = re.sub(r' +', ' ', text)
+    text = re.sub(r'-+', '-', text)
     
     return text
 
 def generate_pdf_from_markdown(markdown_content: str, output_path: str) -> bool:
-  
+    """
+    Converts Markdown to a beautifully formatted academic PDF using xhtml2pdf.
+    Pure Python, no external system libraries required!
+    """
     try:
-        # 1. Sanitize the text to remove weird Unicode artifacts
+        # 1. Sanitize the text FIRST to remove ALL weird Unicode artifacts
         clean_content = sanitize_text(markdown_content)
         
         # 2. Convert Markdown to HTML
@@ -30,7 +40,14 @@ def generate_pdf_from_markdown(markdown_content: str, output_path: str) -> bool:
             extensions=['tables', 'fenced_code']
         )
         
-        # 3. Wrap in a clean, academic HTML template with embedded CSS
+        # 3. MAGIC TRICK: Force a page break before every <h1> EXCEPT the first one.
+        # This ensures the main title stays on page 1, but every subsequent paper 
+        # title starts on a brand new page.
+        html_content = html_content.replace('<h1>', '<h1 class="first-title">', 1)
+        html_content = html_content.replace('<h1>', '<h1 style="page-break-before: always; margin-top: 40px;">')
+        html_content = html_content.replace('<h1 class="first-title">', '<h1>')
+        
+        # 4. Wrap in a clean, academic HTML template with embedded CSS
         full_html = f"""
         <!DOCTYPE html>
         <html>
@@ -101,7 +118,7 @@ def generate_pdf_from_markdown(markdown_content: str, output_path: str) -> bool:
         </html>
         """
         
-        # 4. Generate PDF using xhtml2pdf
+        # 5. Generate PDF using xhtml2pdf
         with open(output_path, "w+b") as result_file:
             pisa_status = pisa.CreatePDF(
                 BytesIO(full_html.encode("utf-8")),

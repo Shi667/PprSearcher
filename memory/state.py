@@ -5,7 +5,7 @@ class ResearchState(TypedDict):
     num_papers: int             
     raw_papers: List[Dict]
     analyzed_papers: List[Dict]
-    synthesis: str             
+    synthesis: str
     critique: str
     gaps: List[str]
     iteration: int

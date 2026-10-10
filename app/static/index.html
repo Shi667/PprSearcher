@@ -5,12 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Deep Research Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:ital,wght@0,400;0,600;1,400&display=swap"
       rel="stylesheet"
     />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <style>
+      :root {
+        --bg: #fafaf9;
+        --surface: #fff;
+        --sunk: #f4f4f2;
+        --line: #e7e5e4;
+        --text: #1c1917;
+        --muted: #78716c;
+        --accent: #0f766e;
+        --accent-hover: #0d6b64;
+        --accent-soft: #e3f3f1;
+        --err: #b42318;
+        --err-soft: #fdecea;
+        --serif: "Lora", Georgia, serif;
+        --sans: "Inter", system-ui, sans-serif;
+        --r: 10px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #151413;
+          --surface: #1c1b1a;
+          --sunk: #242321;
+          --line: #34322f;
+          --text: #ece9e6;
+          --muted: #a29d97;
+          --accent: #2dd4bf;
+          --accent-hover: #5eead4;
+          --accent-soft: #123532;
+          --err: #f87171;
+          --err-soft: #3a1c1a;
+        }
+      }
       *,
       *::before,
       *::after {
@@ -18,695 +51,695 @@
         margin: 0;
         padding: 0;
       }
-
-      :root {
-        --bg: #fafaf9;
-        --surface: #ffffff;
-        --border: #e7e5e4;
-        --text: #1c1917;
-        --text-secondary: #78716c;
-        --accent: #0f766e;
-        --accent-light: #ccfbf1;
-        --accent-hover: #0d9488;
-        --error: #dc2626;
-        --error-light: #fee2e2;
-        --radius: 8px;
-        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
-      }
-
       body {
-        font-family:
-          "Inter",
-          -apple-system,
-          sans-serif;
+        font: 15px/1.6 var(--sans);
         background: var(--bg);
         color: var(--text);
-        line-height: 1.6;
         min-height: 100vh;
       }
-
-      .container {
-        max-width: 960px;
+      button,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .wrap {
+        max-width: 760px;
         margin: 0 auto;
-        padding: 2rem 1.5rem 4rem;
+        padding: 72px 24px 120px;
       }
 
-      /* ── Header ── */
-      header {
-        text-align: center;
-        margin-bottom: 2.5rem;
-        padding-bottom: 2rem;
-        border-bottom: 1px solid var(--border);
-      }
-
+      /* Header */
       header h1 {
-        font-family: "Lora", Georgia, serif;
-        font-size: 2rem;
-        font-weight: 600;
+        font: 600 34px/1.15 var(--serif);
         letter-spacing: -0.02em;
-        margin-bottom: 0.4rem;
       }
-
       header p {
-        color: var(--text-secondary);
-        font-size: 0.95rem;
+        margin-top: 8px;
+        color: var(--muted);
       }
 
-      /* ── Architecture Diagram ── */
-      .arch-diagram {
+      /* Composer: one quiet surface holding topic, paper count and the action */
+      .composer {
+        margin-top: 36px;
         background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 1.25rem;
-        margin-bottom: 2rem;
-        text-align: center;
-        box-shadow: var(--shadow);
-      }
-
-      .arch-diagram code {
-        font-family: "SF Mono", "Fira Code", monospace;
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        white-space: pre;
-        line-height: 1.5;
-      }
-
-      /* ── Input Section ── */
-      .input-section {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow);
-      }
-
-      .input-row {
+        border: 1px solid var(--line);
+        border-radius: var(--r);
         display: flex;
-        gap: 0.75rem;
-        align-items: flex-end;
-        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 6px 6px 16px;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
       }
-
-      .input-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        flex: 1;
-        min-width: 200px;
-      }
-
-      .input-group.small {
-        flex: 0 0 120px;
-        min-width: 120px;
-      }
-
-      .input-group label {
-        font-size: 0.8rem;
-        font-weight: 500;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-
-      .input-group input {
-        padding: 0.6rem 0.85rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        font-family: inherit;
-        font-size: 0.95rem;
-        color: var(--text);
-        background: var(--bg);
-        transition: border-color 0.2s;
-        outline: none;
-      }
-
-      .input-group input:focus {
+      .composer:focus-within {
         border-color: var(--accent);
-        box-shadow: 0 0 0 3px var(--accent-light);
+        box-shadow: 0 0 0 3px var(--accent-soft);
       }
-
-      .input-group input[type="number"] {
-        text-align: center;
+      #topic {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        background: none;
+        padding: 10px 0;
+        outline: none;
+        font-size: 16px;
       }
-
-      .btn-primary {
-        padding: 0.6rem 1.5rem;
+      #topic::placeholder {
+        color: var(--muted);
+      }
+      .count {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        border-left: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 14px;
+      }
+      #num-papers {
+        width: 38px;
+        border: 0;
+        background: none;
+        text-align: right;
+        outline: none;
+        -moz-appearance: textfield;
+      }
+      #num-papers::-webkit-inner-spin-button {
+        display: none;
+      }
+      .btn {
+        border: 0;
+        border-radius: 7px;
+        padding: 10px 20px;
         background: var(--accent);
         color: #fff;
-        border: none;
-        border-radius: var(--radius);
-        font-family: inherit;
-        font-size: 0.95rem;
         font-weight: 500;
         cursor: pointer;
-        transition:
-          background 0.2s,
-          transform 0.1s;
         white-space: nowrap;
-        height: 42px;
+        transition: background 0.15s;
       }
-
-      .btn-primary:hover:not(:disabled) {
+      @media (prefers-color-scheme: dark) {
+        .btn {
+          color: #0b1f1d;
+        }
+      }
+      .btn:hover:not(:disabled) {
         background: var(--accent-hover);
       }
-
-      .btn-primary:active:not(:disabled) {
-        transform: scale(0.98);
-      }
-
-      .btn-primary:disabled {
+      .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
       }
-
-      /* ── Progress Panel ── */
-      .progress-panel {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow);
-        display: none;
+      .btn.quiet {
+        background: none;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        padding: 7px 14px;
+        font-size: 13.5px;
+      }
+      .btn.quiet:hover:not(:disabled) {
+        background: var(--sunk);
+        color: var(--text);
+      }
+      @media (max-width: 560px) {
+        .composer {
+          flex-wrap: wrap;
+          padding: 12px;
+        }
+        #topic {
+          flex-basis: 100%;
+        }
+        .count {
+          border: 0;
+          padding: 0 8px 0 0;
+          flex: 1;
+        }
       }
 
-      .progress-panel.visible {
+      .examples {
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .examples button {
+        border: 1px solid var(--line);
+        background: none;
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .examples button:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      /* Run panel: stepper + current status + collapsible activity log */
+      #run {
+        display: none;
+        margin-top: 40px;
+      }
+      #run.on {
         display: block;
       }
-
-      .progress-header {
-        padding: 1rem 1.25rem;
-        border-bottom: 1px solid var(--border);
+      .stepper {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+      }
+      .step {
+        padding-top: 10px;
+        border-top: 2px solid var(--line);
+        font-size: 13.5px;
+        color: var(--muted);
+        transition:
+          border-color 0.3s,
+          color 0.3s;
+      }
+      .step.active {
+        border-color: var(--accent);
+        color: var(--text);
+        font-weight: 500;
+      }
+      .step.done {
+        border-color: var(--accent);
+      }
+      .status {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 10px;
+        margin-top: 18px;
+        min-height: 28px;
       }
-
-      .progress-header h3 {
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--text-secondary);
-      }
-
-      .pulse-dot {
+      .dot {
         width: 8px;
         height: 8px;
+        flex: none;
         border-radius: 50%;
         background: var(--accent);
-        animation: pulse 1.5s ease-in-out infinite;
+        animation: pulse 1.4s ease-in-out infinite;
       }
-
+      .status.idle .dot {
+        animation: none;
+        background: var(--line);
+      }
+      .status.fail .dot {
+        animation: none;
+        background: var(--err);
+      }
+      #status-text {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #meta {
+        color: var(--muted);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
       @keyframes pulse {
-        0%,
-        100% {
-          opacity: 1;
-          transform: scale(1);
-        }
         50% {
-          opacity: 0.4;
-          transform: scale(0.8);
+          opacity: 0.3;
+          transform: scale(0.7);
         }
       }
 
-      .progress-list {
-        max-height: 300px;
+      details {
+        margin-top: 12px;
+      }
+      summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 13.5px;
+        width: fit-content;
+      }
+      summary:hover {
+        color: var(--text);
+      }
+      #log {
+        margin-top: 10px;
+        max-height: 260px;
         overflow-y: auto;
-        padding: 0.5rem 0;
+        border-top: 1px solid var(--line);
       }
-
-      .progress-item {
-        padding: 0.5rem 1.25rem;
-        font-size: 0.88rem;
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        animation: fadeIn 0.3s ease;
-        border-left: 3px solid transparent;
+      .row {
+        display: grid;
+        grid-template-columns: 24px 1fr auto;
+        gap: 8px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 13.5px;
+        animation: in 0.3s ease;
       }
-
-      .progress-item.research {
-        border-left-color: #2563eb;
+      .row time {
+        color: var(--muted);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
       }
-      .progress-item.read {
-        border-left-color: #7c3aed;
+      .row.error {
+        color: var(--err);
       }
-      .progress-item.synthesize {
-        border-left-color: #059669;
-      }
-      .progress-item.critique {
-        border-left-color: #d97706;
-      }
-      .progress-item.info {
-        border-left-color: var(--border);
-      }
-      .progress-item.error {
-        border-left-color: var(--error);
-        background: var(--error-light);
-      }
-
-      .progress-item .icon {
-        font-size: 1rem;
-        flex-shrink: 0;
-      }
-      .progress-item .time {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        margin-left: auto;
-        flex-shrink: 0;
-      }
-
-      @keyframes fadeIn {
+      @keyframes in {
         from {
           opacity: 0;
-          transform: translateY(-4px);
         }
         to {
           opacity: 1;
-          transform: translateY(0);
         }
       }
 
-      /* ── Synthesis Section ── */
-      .synthesis-section {
+      /* Result */
+      #result {
         display: none;
-        animation: fadeIn 0.5s ease;
+        margin-top: 56px;
+        animation: in 0.5s ease;
       }
-
-      .synthesis-section.visible {
+      #result.on {
         display: block;
       }
-
-      .synthesis-header {
+      .result-head {
         display: flex;
+        align-items: flex-end;
         justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
       }
-
-      .synthesis-header h2 {
-        font-family: "Lora", Georgia, serif;
-        font-size: 1.4rem;
-        font-weight: 600;
+      .result-head h2 {
+        font: 600 22px var(--serif);
+        letter-spacing: -0.01em;
       }
-
-      .btn-download {
-        padding: 0.5rem 1.2rem;
-        background: var(--text);
-        color: #fff;
-        border: none;
-        border-radius: var(--radius);
-        font-family: inherit;
-        font-size: 0.85rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: opacity 0.2s;
+      .result-head .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 2px;
+      }
+      .tools {
         display: flex;
-        align-items: center;
-        gap: 0.4rem;
+        gap: 8px;
+      }
+      #synthesis {
+        padding-top: 28px;
       }
 
-      .btn-download:hover {
-        opacity: 0.85;
+      .md {
+        font-family: var(--serif);
+        font-size: 17px;
+        line-height: 1.78;
+        max-width: 68ch;
       }
-      .btn-download:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
+      .md > * + * {
+        margin-top: 1em;
       }
-
-      .synthesis-content {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 2rem 2.5rem;
-        box-shadow: var(--shadow-lg);
-        font-family: "Lora", Georgia, serif;
-        font-size: 1rem;
-        line-height: 1.75;
-      }
-
-      /* ── Markdown Styling ── */
-      .synthesis-content h1 {
-        font-family: "Lora", Georgia, serif;
-        font-size: 1.5rem;
+      .md h1,
+      .md h2,
+      .md h3,
+      .md h4 {
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        margin-top: 1.9em;
         font-weight: 600;
-        margin: 2rem 0 0.75rem;
-        padding-bottom: 0.4rem;
-        border-bottom: 2px solid var(--accent);
-        color: var(--text);
       }
-
-      .synthesis-content h1:first-child {
+      .md h1 {
+        font-size: 28px;
         margin-top: 0;
       }
-
-      .synthesis-content h2 {
-        font-family: "Lora", Georgia, serif;
-        font-size: 1.15rem;
-        font-weight: 600;
-        margin: 1.5rem 0 0.5rem;
+      .md h2 {
+        font-size: 22px;
+      }
+      .md h3 {
+        font-size: 18.5px;
+      }
+      .md h4 {
+        font-size: 17px;
+      }
+      .md a {
         color: var(--accent);
+        text-underline-offset: 3px;
       }
-
-      .synthesis-content h3 {
-        font-size: 1rem;
-        font-weight: 600;
-        margin: 1.2rem 0 0.4rem;
+      .md ul,
+      .md ol {
+        padding-left: 1.4em;
       }
-
-      .synthesis-content p {
-        margin-bottom: 0.75rem;
+      .md li + li {
+        margin-top: 0.3em;
       }
-
-      .synthesis-content strong {
-        font-weight: 600;
-      }
-
-      .synthesis-content a {
-        color: var(--accent);
-        text-decoration: underline;
-        text-underline-offset: 2px;
-      }
-
-      .synthesis-content ul,
-      .synthesis-content ol {
-        margin: 0.5rem 0 1rem 1.5rem;
-      }
-
-      .synthesis-content li {
-        margin-bottom: 0.3rem;
-      }
-
-      .synthesis-content hr {
-        border: none;
-        border-top: 1px solid var(--border);
-        margin: 2rem 0;
-      }
-
-      .synthesis-content table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 1rem 0;
-        font-family: "Inter", sans-serif;
-        font-size: 0.88rem;
-      }
-
-      .synthesis-content th,
-      .synthesis-content td {
-        padding: 0.6rem 0.8rem;
-        border: 1px solid var(--border);
-        text-align: left;
-      }
-
-      .synthesis-content th {
-        background: var(--bg);
-        font-weight: 600;
-      }
-
-      .synthesis-content blockquote {
+      .md blockquote {
+        padding-left: 18px;
         border-left: 3px solid var(--accent);
-        padding: 0.5rem 1rem;
-        margin: 1rem 0;
-        background: var(--accent-light);
-        border-radius: 0 var(--radius) var(--radius) 0;
-        font-style: italic;
+        color: var(--muted);
       }
-
-      .synthesis-content code {
-        font-family: "SF Mono", "Fira Code", monospace;
-        font-size: 0.88em;
-        background: var(--bg);
-        padding: 0.15em 0.4em;
+      .md hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 2em 0;
+      }
+      .md code {
+        font:
+          13px ui-monospace,
+          "SF Mono",
+          Menlo,
+          monospace;
+        background: var(--sunk);
+        padding: 2px 6px;
         border-radius: 4px;
       }
-
-      .synthesis-content pre {
-        background: #1c1917;
-        color: #e7e5e4;
-        padding: 1rem;
-        border-radius: var(--radius);
+      .md pre {
+        background: var(--sunk);
+        padding: 14px 16px;
+        border-radius: 8px;
         overflow-x: auto;
-        margin: 1rem 0;
       }
-
-      .synthesis-content pre code {
-        background: none;
+      .md pre code {
         padding: 0;
-        color: inherit;
+        background: none;
+      }
+      .md .tablewrap {
+        overflow-x: auto;
+        max-width: none;
+      }
+      .md table {
+        border-collapse: collapse;
+        width: 100%;
+        font: 14px/1.5 var(--sans);
+      }
+      .md th,
+      .md td {
+        text-align: left;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      .md th {
+        font-weight: 600;
+        background: var(--sunk);
       }
 
-      /* ── Error Toast ── */
-      .error-toast {
+      /* Toast */
+      #toast {
         position: fixed;
-        bottom: 2rem;
-        right: 2rem;
-        background: var(--error);
-        color: #fff;
-        padding: 0.8rem 1.2rem;
-        border-radius: var(--radius);
-        font-size: 0.9rem;
-        box-shadow: var(--shadow-lg);
-        animation: fadeIn 0.3s ease;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        background: var(--err-soft);
+        color: var(--err);
+        border: 1px solid var(--err);
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        max-width: min(520px, 90vw);
         display: none;
-        z-index: 100;
+        z-index: 10;
       }
-
-      .error-toast.visible {
+      #toast.on {
         display: block;
+        animation: in 0.25s ease;
       }
-
-      /* ── Responsive ── */
-      @media (max-width: 640px) {
-        .container {
-          padding: 1rem;
-        }
-        .synthesis-content {
-          padding: 1.25rem;
-        }
-        .input-row {
-          flex-direction: column;
-        }
-        .input-group.small {
-          flex: 1;
-        }
-        .btn-primary {
-          width: 100%;
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
         }
       }
     </style>
   </head>
   <body>
-    <div class="container">
+    <div class="wrap">
       <header>
         <h1>Deep Research Agent</h1>
         <p>
-          Autonomous state-of-the-art review generation via LangGraph, Groq
-          &amp; arXiv
+          Autonomous state-of-the-art reviews from arXiv, written and critiqued
+          by an agent loop.
         </p>
       </header>
 
-      <div class="arch-diagram">
-        <code
-          >START → Research → Read → Synthesize → Critic ─┐ │ └── (if gaps
-          found, loop back) ─────────────┘ └── (if approved) → END</code
+      <div class="composer">
+        <input
+          id="topic"
+          type="text"
+          placeholder="e.g., argument mining in legal texts"
+          aria-label="Research topic"
+          autocomplete="off"
+          autofocus
+        />
+        <label class="count"
+          ><input
+            id="num-papers"
+            type="number"
+            min="1"
+            max="20"
+            value="5"
+            aria-label="Number of papers"
+          />
+          papers</label
         >
+        <button class="btn" id="start-btn">Start research</button>
+      </div>
+      <div class="examples" id="examples">
+        <button type="button">argument mining in legal texts</button>
+        <button type="button">quantum machine learning benchmarking</button>
+        <button type="button">retrieval-augmented generation evaluation</button>
       </div>
 
-      <div class="input-section">
-        <div class="input-row">
-          <div class="input-group">
-            <label for="topic">Research Topic</label>
-            <input
-              type="text"
-              id="topic"
-              placeholder="e.g., argument mining in legal texts"
-            />
+      <section id="run" aria-live="polite">
+        <div class="stepper" id="stepper">
+          <div class="step" data-stage="research">Research</div>
+          <div class="step" data-stage="read">Read</div>
+          <div class="step" data-stage="synthesize">Synthesize</div>
+          <div class="step" data-stage="critique">Critic</div>
+        </div>
+        <div class="status" id="status">
+          <span class="dot"></span><span id="status-text"></span
+          ><span id="meta"></span>
+        </div>
+        <details>
+          <summary>Activity log</summary>
+          <div id="log"></div>
+        </details>
+      </section>
+
+      <section id="result">
+        <div class="result-head">
+          <div>
+            <h2>Paper summaries</h2>
+            <div class="sub" id="result-sub"></div>
           </div>
-          <div class="input-group small">
-            <label for="num-papers">Papers</label>
-            <input type="number" id="num-papers" min="1" max="20" value="5" />
+          <div class="tools">
+            <button class="btn quiet" id="copy-btn">Copy Markdown</button>
+            <button class="btn quiet" id="pdf-btn">Download PDF</button>
           </div>
-          <button class="btn-primary" id="start-btn" onclick="startResearch()">
-            Start Research
-          </button>
         </div>
-      </div>
-
-      <div class="progress-panel" id="progress-panel">
-        <div class="progress-header">
-          <div class="pulse-dot" id="pulse-dot"></div>
-          <h3>Live Progress</h3>
-        </div>
-        <div class="progress-list" id="progress-list"></div>
-      </div>
-
-      <div class="synthesis-section" id="synthesis-section">
-        <div class="synthesis-header">
-          <h2>Paper Summaries</h2>
-          <button
-            class="btn-download"
-            id="download-btn"
-            onclick="downloadPDF()"
-          >
-            <span>📄</span> Download as PDF
-          </button>
-        </div>
-        <div class="synthesis-content" id="synthesis-content"></div>
-      </div>
+        <article class="md" id="synthesis"></article>
+      </section>
     </div>
-
-    <div class="error-toast" id="error-toast"></div>
+    <div id="toast" role="alert"></div>
 
     <script>
+      const $ = (id) => document.getElementById(id);
       const ICONS = {
         research: "🔍",
         read: "📖",
         synthesize: "📝",
         critique: "⚖️",
-        info: "ℹ️",
-        error: "❌",
+        info: "·",
+        error: "⚠️",
+        done: "✅",
       };
+      const ORDER = ["research", "read", "synthesize", "critique"];
 
-      let currentSynthesis = "";
-      let currentTopic = "";
+      let currentSynthesis = "",
+        currentTopic = "",
+        round = 1,
+        reached = -1,
+        startedAt = 0,
+        timer = null;
 
-      function showError(msg) {
-        const toast = document.getElementById("error-toast");
-        toast.textContent = msg;
-        toast.classList.add("visible");
-        setTimeout(() => toast.classList.remove("visible"), 5000);
+      function toast(msg) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.classList.add("on");
+        clearTimeout(toast.id);
+        toast.id = setTimeout(() => t.classList.remove("on"), 5000);
       }
 
-      function addProgressItem(stage, message) {
-        const list = document.getElementById("progress-list");
-        const item = document.createElement("div");
-        item.className = `progress-item ${stage}`;
+      const fmt = (s) =>
+        `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-        const now = new Date();
-        const time = now.toLocaleTimeString("en-US", {
+      function tick() {
+        const label = round > 1 ? `Round ${round} · ` : "";
+        $("meta").textContent = label + fmt((Date.now() - startedAt) / 1000);
+      }
+
+      function setStatus(text, mode = "") {
+        $("status").className = "status " + mode;
+        $("status-text").textContent = text;
+      }
+
+      // Stepper: steps fill as the agent advances; a new Research step after the critic starts another round.
+      function advance(stage) {
+        const i = ORDER.indexOf(stage);
+        if (i < 0) return;
+        if (stage === "research" && reached >= 3) {
+          round++;
+          reached = -1;
+        }
+        reached = Math.max(reached, i);
+        document.querySelectorAll(".step").forEach((el, k) => {
+          el.classList.toggle("active", k === reached);
+          el.classList.toggle("done", k < reached);
+        });
+      }
+
+      function addLog(stage, message) {
+        const row = document.createElement("div");
+        row.className = "row " + (stage === "error" ? "error" : "");
+        const icon = document.createElement("span");
+        icon.textContent = ICONS[stage] || "·";
+        const text = document.createElement("span");
+        text.textContent = message;
+        const time = document.createElement("time");
+        time.textContent = new Date().toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
         });
+        row.append(icon, text, time);
+        $("log").appendChild(row);
+        $("log").scrollTop = $("log").scrollHeight;
+      }
 
-        item.innerHTML = `
-                <span class="icon">${ICONS[stage] || "ℹ️"}</span>
-                <span>${message}</span>
-                <span class="time">${time}</span>
-            `;
-        list.appendChild(item);
-        list.scrollTop = list.scrollHeight;
+      // Wrap tables so wide ones scroll instead of breaking the layout.
+      function render(md) {
+        const holder = $("synthesis");
+        holder.innerHTML = DOMPurify.sanitize(marked.parse(md));
+        holder.querySelectorAll("table").forEach((t) => {
+          const w = document.createElement("div");
+          w.className = "tablewrap";
+          t.replaceWith(w);
+          w.appendChild(t);
+        });
+      }
+
+      function handle(ev) {
+        if (ev.type === "progress") {
+          advance(ev.stage);
+          addLog(ev.stage, ev.message);
+          setStatus(ev.message);
+        } else if (ev.type === "result") {
+          currentSynthesis = ev.synthesis || "";
+          render(currentSynthesis || "_The agent returned no synthesis._");
+          const words = currentSynthesis.trim().split(/\s+/).length;
+          $("result-sub").textContent =
+            `${currentTopic} · ${Math.max(1, Math.round(words / 220))} min read · ${fmt((Date.now() - startedAt) / 1000)} to generate`;
+          $("result").classList.add("on");
+          document.querySelectorAll(".step").forEach((el) => {
+            el.classList.remove("active");
+            el.classList.add("done");
+          });
+          addLog("done", "Synthesis approved by critic");
+          setStatus("Done", "idle");
+          $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+        } else if (ev.type === "error") {
+          addLog("error", ev.message);
+          setStatus("The agent stopped: " + ev.message, "fail");
+          toast(ev.message);
+        }
       }
 
       async function startResearch() {
-        const topic = document.getElementById("topic").value.trim();
-        const numPapers =
-          parseInt(document.getElementById("num-papers").value) || 5;
-
+        const topic = $("topic").value.trim();
+        const n = parseInt($("num-papers").value, 10) || 5;
         if (!topic) {
-          showError("Please enter a research topic.");
+          toast("Enter a research topic first.");
+          $("topic").focus();
           return;
         }
-
-        if (numPapers < 1 || numPapers > 20) {
-          showError("Number of papers must be between 1 and 20.");
+        if (n < 1 || n > 20) {
+          toast("Papers must be between 1 and 20.");
           return;
         }
 
         currentTopic = topic;
         currentSynthesis = "";
-
-        const btn = document.getElementById("start-btn");
-        btn.disabled = true;
-        btn.textContent = "Running...";
-
-        const panel = document.getElementById("progress-panel");
-        const list = document.getElementById("progress-list");
-        const synthSection = document.getElementById("synthesis-section");
-
-        panel.classList.add("visible");
-        synthSection.classList.remove("visible");
-        list.innerHTML = "";
-        document.getElementById("pulse-dot").style.display = "block";
-
-        addProgressItem(
-          "info",
-          `Starting research on "${topic}" (${numPapers} papers)...`,
-        );
+        round = 1;
+        reached = -1;
+        $("start-btn").disabled = true;
+        $("start-btn").textContent = "Running…";
+        $("examples").style.display = "none";
+        $("result").classList.remove("on");
+        $("log").innerHTML = "";
+        document
+          .querySelectorAll(".step")
+          .forEach((el) => el.classList.remove("active", "done"));
+        $("run").classList.add("on");
+        startedAt = Date.now();
+        tick();
+        timer = setInterval(tick, 1000);
+        setStatus(`Starting research on “${topic}”`);
+        addLog("info", `Starting research on “${topic}” (${n} papers)`);
 
         try {
-          const response = await fetch("/api/research", {
+          const res = await fetch("/api/research", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ topic: topic, num_papers: numPapers }),
+            body: JSON.stringify({ topic, num_papers: n }),
           });
-
-          if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.detail || "Server error");
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || "Server error " + res.status);
           }
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-
-          while (true) {
+          const reader = res.body.getReader(),
+            dec = new TextDecoder();
+          let buf = "";
+          for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop();
-
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              const jsonStr = line.slice(6).trim();
-              if (!jsonStr) continue;
-
+            buf += dec.decode(value, { stream: true });
+            const parts = buf.split("\n\n");
+            buf = parts.pop();
+            for (const part of parts) {
+              const line = part.split("\n").find((l) => l.startsWith("data: "));
+              if (!line) continue;
               try {
-                const event = JSON.parse(jsonStr);
-
-                if (event.type === "progress") {
-                  addProgressItem(event.stage, event.message);
-                } else if (event.type === "result") {
-                  currentSynthesis = event.synthesis;
-                  const content = document.getElementById("synthesis-content");
-                  content.innerHTML = marked.parse(event.synthesis);
-                  synthSection.classList.add("visible");
-                  addProgressItem("info", "Research complete!");
-                } else if (event.type === "error") {
-                  addProgressItem("error", event.message);
-                  showError(event.message);
-                }
-              } catch (e) {
-                // skip malformed JSON
+                handle(JSON.parse(line.slice(6)));
+              } catch (_) {
+                /* skip malformed event */
               }
             }
           }
         } catch (err) {
-          addProgressItem("error", err.message);
-          showError(err.message);
+          addLog("error", err.message);
+          setStatus(err.message, "fail");
+          toast(err.message);
         } finally {
-          btn.disabled = false;
-          btn.textContent = "Start Research";
-          document.getElementById("pulse-dot").style.display = "none";
+          clearInterval(timer);
+          tick();
+          $("start-btn").disabled = false;
+          $("start-btn").textContent = "Start research";
         }
       }
 
       async function downloadPDF() {
-        if (!currentSynthesis) {
-          showError("No synthesis available to download.");
-          return;
-        }
-
-        const btn = document.getElementById("download-btn");
+        if (!currentSynthesis)
+          return toast("No synthesis available to download.");
+        const btn = $("pdf-btn");
         btn.disabled = true;
-        btn.innerHTML = "<span>⏳</span> Generating PDF...";
-
+        btn.textContent = "Generating…";
         try {
-          const response = await fetch("/api/download-pdf", {
+          const res = await fetch("/api/download-pdf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -714,44 +747,55 @@
               topic: currentTopic,
             }),
           });
-
-          if (!response.ok) {
-            let errMsg = "PDF generation failed";
-            try {
-              const err = await response.json();
-              errMsg = err.detail || errMsg;
-            } catch (e) {
-              const text = await response.text();
-              errMsg = text || errMsg;
-            }
-            throw new Error(errMsg);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || "PDF generation failed");
           }
-
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          const safeTopic = currentTopic
-            .replace(/[^a-zA-Z0-9\s]/g, "")
-            .trim()
-            .replace(/\s+/g, "_")
-            .substring(0, 40);
-          a.download = `research_report_${safeTopic}.pdf`;
+          const url = URL.createObjectURL(await res.blob());
+          const a = Object.assign(document.createElement("a"), {
+            href: url,
+            download:
+              "research_report_" +
+              currentTopic
+                .replace(/[^a-z0-9\s]/gi, "")
+                .trim()
+                .replace(/\s+/g, "_")
+                .slice(0, 40) +
+              ".pdf",
+          });
           document.body.appendChild(a);
           a.click();
           a.remove();
-          window.URL.revokeObjectURL(url);
+          URL.revokeObjectURL(url);
         } catch (err) {
-          showError("PDF download failed: " + err.message);
+          toast("PDF download failed: " + err.message);
         } finally {
           btn.disabled = false;
-          btn.innerHTML = "<span>📄</span> Download as PDF";
+          btn.textContent = "Download PDF";
         }
       }
 
-      // Allow Enter key to start research
-      document.getElementById("topic").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") startResearch();
+      async function copyMarkdown() {
+        try {
+          await navigator.clipboard.writeText(currentSynthesis);
+          $("copy-btn").textContent = "Copied";
+          setTimeout(() => ($("copy-btn").textContent = "Copy Markdown"), 1800);
+        } catch (_) {
+          toast("Couldn't access the clipboard.");
+        }
+      }
+
+      $("start-btn").addEventListener("click", startResearch);
+      $("pdf-btn").addEventListener("click", downloadPDF);
+      $("copy-btn").addEventListener("click", copyMarkdown);
+      $("topic").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !$("start-btn").disabled) startResearch();
+      });
+      $("examples").addEventListener("click", (e) => {
+        if (e.target.tagName === "BUTTON") {
+          $("topic").value = e.target.textContent;
+          $("topic").focus();
+        }
       });
     </script>
   </body>

@@ -9,50 +9,55 @@ from memory.state import ResearchState
 from tools.arxiv_tool import search_arxiv
 from agents.reader import read_paper
 from agents.critic import critique_synthesis
+from memory.paper_memory import get_seen_ids, add_papers
 from langchain_groq import ChatGroq
 
-llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0.2)
+llm = ChatGroq(model="qwen/qwen3.8-27b", temperature=0.2)
+
 
 def node_research(state: ResearchState) -> dict:
     iteration = state.get("iteration", 0) + 1
     num_papers = state.get("num_papers", 2)
+    seen_ids = get_seen_ids()
+
     print(f"\n🔍 [Graph] Research iteration {iteration}...")
-    
+    print(f"  -> Memory: {len(seen_ids)} papers already seen, filtering them out.")
+
     if state.get("gaps") and len(state["gaps"]) > 0:
         query = state["gaps"][0]
         print(f"  -> Targeted search for gap: '{query}'")
     else:
         query = state["topic"]
         print(f"  -> Initial search for: '{query}'")
-        
-    
-    papers = search_arxiv(query, max_results=num_papers)
-    print(f"  -> {len(papers)} new papers found.")
-    
+
+    papers = search_arxiv(query, max_results=num_papers, exclude_ids=seen_ids)
+    print(f"  -> {len(papers)} NEW papers found (after filtering seen ones).")
+
     current_papers = state.get("raw_papers", [])
     return {
         "raw_papers": current_papers + papers,
         "iteration": iteration
     }
 
+
 def node_read(state: ResearchState) -> dict:
     print("\n📖 [Graph] Reading and structuring new papers...")
-  
-    new_papers = state["raw_papers"][-state.get("num_papers", 2):] if len(state["raw_papers"]) >= state.get("num_papers", 2) else state["raw_papers"]
-    
+    num_papers = state.get("num_papers", 2)
+    new_papers = state["raw_papers"][-num_papers:] if len(state["raw_papers"]) >= num_papers else state["raw_papers"]
+
     analyzed = []
     for i, paper in enumerate(new_papers):
         print(f"  -> Analyzing new paper {i+1}/{len(new_papers)}...")
         analyzed.append(read_paper(paper))
-        
+
     current_analyzed = state.get("analyzed_papers", [])
     print("  -> Analysis complete.")
     return {"analyzed_papers": current_analyzed + analyzed}
 
+
 def node_synthesize(state: ResearchState) -> dict:
-  
     print("\n📝 [Graph] Generating intermediate synthesis for critique...")
-    
+
     context = ""
     for i, p in enumerate(state["analyzed_papers"], 1):
         summary = p.get("structured_summary", {})
@@ -75,38 +80,39 @@ Output format: Markdown. Be concise and academic.
     print("  -> Intermediate synthesis generated.")
     return {"synthesis": response.content}
 
+
 def node_critique(state: ResearchState) -> dict:
     print("\n⚖️ [Graph] Critic evaluating the synthesis...")
     result = critique_synthesis(state["synthesis"], state["topic"])
-    
+
     verdict = result.get("verdict", "No verdict.")
     gaps = result.get("gaps", [])
-    
+
     print(f"  -> Verdict: {verdict}")
     print(f"  -> Gaps identified: {gaps if gaps else 'None (Synthesis is solid!)'}")
-    
+
     return {
         "critique": verdict,
         "gaps": gaps
     }
 
+
 def node_curate(state: ResearchState) -> dict:
-    """Node: Selects the BEST `num_papers` from all fetched papers and generates the FINAL synthesis."""
     print("\n🏆 [Graph] Curating and selecting the best papers...")
     num_papers = state.get("num_papers", 2)
     all_papers = state.get("analyzed_papers", [])
-    
+
     if len(all_papers) <= num_papers:
         print(f"  -> Already have {len(all_papers)} papers (<= {num_papers}). Keeping all.")
         final_papers = all_papers
     else:
         print(f"  -> Evaluating {len(all_papers)} papers to select the top {num_papers}...")
-        
+
         papers_text = "\n\n".join([
             f"ID: {i}\nTitle: {p['title']}\nObjective: {p.get('structured_summary', {}).get('objective_and_scope', '')}"
             for i, p in enumerate(all_papers)
         ])
-        
+
         prompt = f"""
 You are an expert academic curator. You have a list of {len(all_papers)} papers related to the topic: "{state['topic']}".
 Your task is to select the EXACT top {num_papers} most relevant, high-quality papers for a state-of-the-art review.
@@ -121,16 +127,25 @@ Example: [2, 0]
             response = llm.invoke(prompt)
             clean_response = response.content.strip().removeprefix("```json").removesuffix("```").strip()
             top_ids = json.loads(clean_response)
-            
-            # Filter and sort based on LLM's ranking
             final_papers = [all_papers[i] for i in top_ids if i < len(all_papers)][:num_papers]
             titles = [f"'{p['title'][:50]}...'" for p in final_papers]
             print(f"  -> Selected top {num_papers} papers: {', '.join(titles)}")
         except Exception as e:
             print(f"  -> Curation parsing failed, falling back to first {num_papers} papers. Error: {e}")
             final_papers = all_papers[:num_papers]
-    
-    # Generate the FINAL synthesis based ONLY on the curated papers
+
+    # ── Save the selected papers to memory so they won't be shown again ──
+    new_papers = [
+        {"id": p.get("arxiv_id", ""), "title": p.get("title", "Unknown")}
+        for p in final_papers
+        if p.get("arxiv_id")
+    ]
+    if new_papers:
+        add_papers(new_papers)
+        titles = [f"'{p['title'][:40]}...'" for p in new_papers]
+        print(f"  -> 💾 Saved {len(new_papers)} papers to memory: {', '.join(titles)}")
+
+    # Generate the FINAL synthesis
     print("  -> Generating final synthesis from curated papers...")
     context = ""
     for i, p in enumerate(final_papers, 1):
@@ -159,17 +174,18 @@ Papers data:
 """
     response = llm.invoke(final_prompt)
     print("  -> Final curation and synthesis complete.")
-    
+
     return {
         "analyzed_papers": final_papers,
         "synthesis": response.content
     }
 
+
 def should_continue(state: ResearchState) -> str:
     max_iterations = 2
     gaps = state.get("gaps", [])
     current_iteration = state.get("iteration", 0)
-    
+
     if current_iteration >= max_iterations:
         print("\n🛑 [Graph] Max iterations reached. Moving to final curation.")
         return "curate"
@@ -180,6 +196,7 @@ def should_continue(state: ResearchState) -> str:
         print("\n✅ [Graph] Synthesis approved by critic. Moving to final curation.")
         return "curate"
 
+
 def build_research_graph():
     graph = StateGraph(ResearchState)
 
@@ -187,7 +204,7 @@ def build_research_graph():
     graph.add_node("read", node_read)
     graph.add_node("synthesize", node_synthesize)
     graph.add_node("critique", node_critique)
-    graph.add_node("curate", node_curate) 
+    graph.add_node("curate", node_curate)
 
     graph.add_edge(START, "research")
     graph.add_edge("research", "read")
@@ -199,22 +216,24 @@ def build_research_graph():
         should_continue,
         {
             "research": "research",
-            "curate": "curate" 
+            "curate": "curate"
         }
     )
-    
-    graph.add_edge("curate", END) 
+
+    graph.add_edge("curate", END)
 
     return graph.compile()
 
-\
+
+# Expose the compiled graph for the web server
 graph = build_research_graph()
 
+
 if __name__ == "__main__":
-    print("🚀 Launching the LangGraph orchestrator with Critic Loop and Curator...")
-    
+    print("🚀 Launching the LangGraph orchestrator with Memory...")
+
     app = build_research_graph()
-    
+
     initial_state = {
         "topic": "argument mining",
         "num_papers": 2,
@@ -223,15 +242,15 @@ if __name__ == "__main__":
         "synthesis": "",
         "critique": "",
         "gaps": [],
-        "iteration": 0
+        "iteration": 0,
     }
-    
+
     for event in app.stream(initial_state):
         node_name = list(event.keys())[0]
         print(f"\n✅ Node '{node_name}' completed.")
-        
+
     final_state = app.invoke(initial_state)
-    
+
     print("\n" + "="*70)
     print(f"📄 FINAL CURATED SYNTHESIS (Exactly {initial_state['num_papers']} papers)")
     print("="*70)

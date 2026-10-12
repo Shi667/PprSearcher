@@ -27,6 +27,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from memory.paper_memory import get_seen_ids, clear_memory, count_seen, get_all_papers
+
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 api = FastAPI(title="Deep Research Agent")
@@ -93,6 +95,7 @@ def run_graph(topic: str, num_papers: int, q: queue.Queue) -> None:
                 "gaps": [],
                 "iteration": 0,
             }
+            # No need to pass seen_ids in state anymore, the graph loads it directly
 
             final_state = dict(state)
 
@@ -153,6 +156,22 @@ def research(req: ResearchRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@api.get("/api/memory")
+def get_memory():
+    papers = get_all_papers()
+    return {
+        "count": len(papers),
+        "papers": papers  
+    }
+
+
+# Clear memory
+@api.post("/api/memory/clear")
+def clear_memory_endpoint():
+    clear_memory()
+    return {"status": "cleared", "count": 0}
 
 @api.post("/api/stop")
 def stop():

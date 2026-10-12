@@ -1,4 +1,4 @@
-from typing import List, Dict, TypedDict
+from typing import List, Dict, TypedDict, Set
 
 class ResearchState(TypedDict):
     topic: str
@@ -9,3 +9,4 @@ class ResearchState(TypedDict):
     critique: str
     gaps: List[str]
     iteration: int
+    seen_ids: Set[str]

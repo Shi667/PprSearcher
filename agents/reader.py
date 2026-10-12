@@ -11,8 +11,7 @@ from tools.pdf_reader import get_full_paper_text
 load_dotenv()
 
 # Using the Qwen model we selected earlier (or switch back to llama-3.1-8b-instant if preferred)
-llm = ChatGroq(model="qwen/qwen3.8-27b", temperature=0.2)
-
+llm = ChatGroq(model="qwen/qwen3.8-27b", temperature=0.2, max_tokens=600)
 def read_paper(paper: dict) -> dict:
     """
     Fetches the FULL TEXT of the paper and extracts a highly structured academic summary.

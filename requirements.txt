@@ -1,12 +1,31 @@
+# ==========================================
+# Deep Research Agent - Complete Dependencies
+# ==========================================
 
+# Core Agent & LLM Orchestration
 langgraph>=0.2.0
 langchain>=0.3.0
 langchain-groq>=0.2.0
+
+# Data Fetching & PDF Parsing
 requests>=2.31.0
+pymupdf>=1.23.0          # Required for extracting full text from arXiv PDFs
+
+# Environment & Configuration
 python-dotenv>=1.0.0
 
-
+# Web Backend (FastAPI + SSE)
 fastapi>=0.110
 uvicorn>=0.29
-weasyprint>=61.0
+
+# PDF Generation & Markdown Rendering
+# Note: xhtml2pdf is included as the primary generator because it works 
+# flawlessly on Windows/Mac/Linux without requiring external C-libraries 
+# (unlike WeasyPrint, which often fails on Windows).
 markdown>=3.5
+xhtml2pdf>=0.2.11
+reportlab>=4.0.0
+html5lib>=1.1
+
+# Optional: WeasyPrint (Uncomment only if you are on Linux/Mac and prefer it)
+# weasyprint>=61.0

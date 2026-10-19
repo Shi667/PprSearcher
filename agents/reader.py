@@ -10,19 +10,27 @@ from tools.pdf_reader import get_full_paper_text
 
 load_dotenv()
 
-# Using the Qwen model we selected earlier (or switch back to llama-3.1-8b-instant if preferred)
+# Utilisation du modèle Qwen avec une limite stricte pour éviter les erreurs OTPM
 llm = ChatGroq(model="qwen/qwen3.8-27b", temperature=0.2, max_tokens=600)
+
 def read_paper(paper: dict) -> dict:
     """
-    Fetches the FULL TEXT of the paper and extracts a highly structured academic summary.
+    Fetches the FULL TEXT of the paper. If it fails, gracefully falls back to the abstract.
     """
     print(f"    -> Downloading and parsing full PDF for: '{paper['title'][:50]}...'")
     full_text = get_full_paper_text(paper['link'])
     
-    prompt = f"""
-You are an expert scientific reviewer. Analyze the following research paper and extract key information into a highly structured academic summary.
+    # SMART FALLBACK: If PDF extraction failed or returned very little text, use the abstract!
+    if full_text.startswith("Error") or len(full_text) < 300:
+        print(f"    -> ⚠️ PDF extraction failed or too short. Falling back to abstract.")
+        text_to_analyze = f"ABSTRACT:\n{paper['abstract']}\n\n(Note: Full PDF extraction failed or was insufficient. Base your analysis primarily on this abstract.)"
+    else:
+        text_to_analyze = full_text
 
-Return ONLY a valid JSON object with the following exact keys. If a specific detail is genuinely not in the text, write "Not specified in text".
+    prompt = f"""
+You are an expert scientific reviewer. Analyze the following research paper text and extract key information into a highly structured academic summary.
+
+Return ONLY a valid JSON object with the following exact keys. If a specific detail is genuinely not in the provided text, write "Not specified in text".
 
 - "objective_and_scope": The main goal and scope of the study (1-2 sentences).
 - "domain_and_motivation": The background, context, or research gap addressed.
@@ -36,10 +44,10 @@ Return ONLY a valid JSON object with the following exact keys. If a specific det
 - "keywords": A list of 3 to 5 relevant keywords.
 
 Paper Title: {paper['title']}
-Paper Full Text (excerpt): 
-{full_text}
+Paper Text to Analyze: 
+{text_to_analyze}
 
-Output strictly in JSON format, no markdown, no extra text.
+Output strictly in JSON format, no markdown, no extra text. Be extremely concise.
 """
     
     try:

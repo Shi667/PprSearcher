@@ -33,12 +33,18 @@ def get_full_paper_text(arxiv_link: str) -> str:
         for i in range(max_pages):
             text += doc[i].get_text()
         
+        
+        
         doc.close()
         os.unlink(tmp_path) # Clean up temp file
         
         # Cap the text length to avoid overwhelming the LLM context window
-        # 12,000 characters is ~3,000 tokens, which is perfect for Groq models
         return text[:12000] 
+        
+    except Exception as e:
+        # Print the exact error to the console so we can debug it
+        print(f"    -> ❌ PDF Fetch Error for {arxiv_link}: {str(e)}")
+        return f"Error fetching or parsing PDF: {str(e)}"
         
     except Exception as e:
         return f"Error fetching or parsing PDF: {str(e)}"
